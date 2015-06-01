@@ -1,4 +1,4 @@
-import glassjam
+import jclasstree
 
 
 fpaths = [
@@ -22,7 +22,7 @@ fully_qualified = {
 def test_parser():
     with open('./testfiles/stuff2/A.java') as f:
         data = f.read()
-        parsed = glassjam.parse(data)
+        parsed = jclasstree.parse(data)
         assert parsed.package == ('stuff2',)
         assert parsed.imports == [('stuff',)]
         assert parsed.cls == 'A'
@@ -31,9 +31,9 @@ def test_parser():
 
 
 def test_node():
-    root = glassjam.Node.make_root()
-    root.extend_children([glassjam.Node('childA'), glassjam.Node('childB')])
-    root.navigate(('childA',)).extend_children([glassjam.Node('grandchildA'), glassjam.Node('grandchildB')])
+    root = jclasstree.Node.make_root()
+    root.extend_children([jclasstree.Node('childA'), jclasstree.Node('childB')])
+    root.navigate(('childA',)).extend_children([jclasstree.Node('grandchildA'), jclasstree.Node('grandchildB')])
     assert root.navigate(('aahaha', 'ha')) == None
     assert root.navigate(()) == root
     assert root.navigate(('childA',)).name == 'childA'
@@ -42,18 +42,18 @@ def test_node():
 
 
 def test_node_forgepath():
-    root = glassjam.Node.make_root()
+    root = jclasstree.Node.make_root()
     root.forgepath(('one', 'two', 'three', 'four'))
     assert root.navigate(('one', 'two', 'three', 'four'))
 
 def test_node_path():
-    root = glassjam.Node.make_root()
+    root = jclasstree.Node.make_root()
     root.forgepath(('one', 'two', 'three', 'four'))
     four = root.navigate(('one', 'two', 'three', 'four'))
     assert four.path() == ('one', 'two', 'three', 'four')
 
 def test_inheritance():
-    inheritance, _ = glassjam.get_relationships(fpaths)
+    inheritance, _ = jclasstree.get_relationships(fpaths)
     expected_inheritance = {
         ('stuff', 'B'): ('stuff', 'A'),
         ('stuff2', 'AA'): ('stuff2', 'A'),
