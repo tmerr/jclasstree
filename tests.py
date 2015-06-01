@@ -38,3 +38,8 @@ def test_node():
     assert root.navigate(('childA',)).name == 'childA'
     assert root.navigate(('childB', 'gdasgdsag')) == None
     assert root.navigate(('childA', 'grandchildB')).name == 'grandchildB'
+
+def test_node_forgepath():
+    root = jtree.Node.make_root('root')
+    root.forgepath(('one', 'two', 'three', 'four'))
+    assert root.navigate(('one', 'two', 'three', 'four'))

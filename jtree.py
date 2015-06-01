@@ -77,9 +77,10 @@ def parse(string):
 
 
 class Node():
-    def __init__(self, name):
+    def __init__(self, name, data=None):
         self.name = name
         self.children = []
+        self.data = data
 
     @classmethod
     def make_root(cls, name):
@@ -101,6 +102,27 @@ class Node():
                 if traveled:
                     return traveled
         return None
+
+    def forgepath(self, path):
+        '''creates nodes if they're not there'''
+        if len(path) == 0:
+            return
+
+        for child in self.children:
+            if child.name == path[0]:
+                child.forgepath(path[1:])
+                return
+
+        newnode = Node(path[0])
+        self.extend_children([newnode])
+        newnode.forgepath(path[1:])
+
+
+def dosomething(fpaths):
+    for fname in fpaths:
+        with open(fname, 'r') as f:
+            classinfo = parse(f.fread())
+            Node(classinfo.cls, data=classinfo)
 
 
 def buildtree(fpaths):
