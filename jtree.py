@@ -20,20 +20,23 @@ def build_parser():
     k_implements = pp.Keyword('implements')
     k_extends = pp.Keyword('extends')
     k_class = pp.Keyword('class')
-    #k_import = pp.Keyword('import')
-    keyword = k_package | k_implements | k_extends | k_class
+    k_import = pp.Keyword('import')
+    keyword = k_package | k_implements | k_extends | k_class | k_import
 
     identifier = pp.NotAny(keyword) + pp.Word(pp.alphanums + '$' + '_' + pp.srange(r'\x00C0-\xFFFF')).setName('identifier')
-    #identpath = pp.delimitedList(identifier, delim='.')
-    package_dec = k_package + identifier('package') + pp.Literal(';')
+    identpath = pp.delimitedList(identifier, delim='.')
+    package_dec = k_package + identpath('package') + pp.Literal(';')
 
-     #import_dec = pp.ZeroOrMore(k_import + identpath + pp.Literal(';'))
+    importpath = identpath + pp.Optional(pp.Literal('.') + pp.Literal('*'))
+    oneimport = importpath.setResultsName('imports', listAllMatches=True)
+    imports = pp.Group(pp.ZeroOrMore(k_import + oneimport + pp.Literal(';'))).setResultsName('importlines')
 
-    implements = k_implements + identifier('implements')
-    extends = k_extends + pp.delimitedList(identifier('extends'), delim=',')
+    implements = k_implements + identpath('implements')
+    extends = k_extends + pp.delimitedList(identpath('extends'), delim=',')
     class_dec = k_class + identifier('cls') + pp.Optional(extends) + pp.Optional(implements)
 
-    grammar = pp.SkipTo(package_dec).suppress() + package_dec + pp.SkipTo(class_dec).suppress() + class_dec
+    grammar = package_dec + imports + class_dec
+
     string_literal = pp.nestedExpr('"')
     grammar.ignore(pp.cStyleComment)
     grammar.ignore(string_literal)
@@ -43,33 +46,94 @@ def build_parser():
 
 parser = build_parser()
 def parse(string):
-    '''Return a dict with fields package, class, (maybe) implements, and (maybe) extends'''
-    ClassInfo = namedtuple('ClassInfo', ['package', 'cls', 'implements', 'extends'])
+    '''
+    Return a ClassInfo object with fields
+        package: a list
+        imports: a list of lists
+        cls: the string name of the class
+        extends: a list
+        implements: a list of lists
+
+    Or if there is an error parsing, return None.
+    '''
+
+    ClassInfo = namedtuple('ClassInfo', ['package', 'imports', 'cls', 'extends', 'implements'])
     try:
+        def tuplify(x):
+            # working out the return types from the parser is really annoying.
+            # this will turn [], '', or None into (,), and a result into a tuple.
+            return () if not x else tuple(x.asList())
+
         parsed = parser.parseString(string)
-        return ClassInfo(str(parsed.package[0]), str(parsed.cls[0]), str(parsed.implements), str(parsed.extends))
+        package = tuplify(parsed.package)
+        imports = [tuplify(x) for x in parsed.importlines.imports]
+        cls = tuplify(parsed.cls)[0]
+        extends = tuplify(parsed.extends)
+        implements = [tuplify(x) for x in parsed.implements]
+
+        return ClassInfo(package, imports, cls, extends, implements)
     except pp.ParseException:
         return None
 
 
-def package_structure(fpaths):
-    '''
-    Return a list of valid fully-qualified class names.
-    Each is a tuple (a, b, c, ..., Class)
-    '''
-    result = []
-    for fname in fpaths:
-        with open(fname, 'r') as f:
-            dct = parse(f.read())
-            if dct:
-                result.append(tuple(dct.package.split('.') + [dct.cls]))
+class Node():
+    def __init__(self, name):
+        self.name = name
+        self.children = []
 
-    return result
+    @classmethod
+    def make_root(cls, name):
+        result = cls(name)
+        result.parent = None
+        return result
+
+    def extend_children(self, children):
+        for ch in children:
+            ch.parent = self
+        self.children.extend(children)
+
+    def navigate(self, path):
+        if len(path) == 0:
+            return self
+        for child in self.children:
+            if path[0] == child.name:
+                traveled = child.navigate(path[1:])
+                if traveled:
+                    return traveled
+        return None
 
 
 def buildtree(fpaths):
-    tree = {}
-    structure = package_structure(fpaths)
+    namespaces = defaultdict(list)
+    classinfos = []
+    for fname in fpaths:
+        with open(fname, 'r') as f:
+            classinfo = parse(f.fread())
+            namespaces[classinfo.package].append(classinfo.cls)
+            classinfos.append(classinfo)
+
+    # "import x.y.Z" statements are easy to work with: check Z directly against ('x', 'y', 'Z').
+    # "import x.y.*" will grab values from namespaces[(x, y)] => [A, B, C, Z]
+    
+    # key: a class
+    # val: (class, edgetype)
+    tree = []
+    for cls in classinfos:
+        # map names in the local namespace to fully qualified ones
+        fullyqualified = defaultdict(list)
+        for imp in cls.imports:
+            if imp[-1] == '*':
+                path = imp[:-2]
+                if path in namespaces:
+                    children = namespaces[path]
+                    for child in children:
+                        fullyqualified[child].append(path + [child])
+            elif len(imp) == 1:
+                fullyqualified.append(imp)
+            else:
+                fullyqualified[imp[-1]] = imp
+
+
 
 
 def run():
