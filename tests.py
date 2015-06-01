@@ -51,3 +51,14 @@ def test_node_path():
     root.forgepath(('one', 'two', 'three', 'four'))
     four = root.navigate(('one', 'two', 'three', 'four'))
     assert four.path() == ('one', 'two', 'three', 'four')
+
+def test_inheritance():
+    inheritance, _ = jtree.get_relationships(fpaths)
+    expected_inheritance = {
+        ('stuff', 'B'): ('stuff', 'A'),
+        ('stuff2', 'AA'): ('stuff2', 'A'),
+        ('stuff2', 'A'): ('stuff', 'A'),
+        ('stuff2', 'B'): ('stuff', 'B'),
+    }
+    print(inheritance)
+    assert inheritance == expected_inheritance

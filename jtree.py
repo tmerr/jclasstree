@@ -21,7 +21,10 @@ def build_parser():
     k_extends = pp.Keyword('extends')
     k_class = pp.Keyword('class')
     k_import = pp.Keyword('import')
-    keyword = k_package | k_implements | k_extends | k_class | k_import
+    k_public = pp.Keyword('public')
+    k_abstract = pp.Keyword('abstract')
+    k_final = pp.Keyword('final')
+    keyword = k_package | k_implements | k_extends | k_class | k_import | k_public | k_abstract | k_final
 
     identifier = pp.NotAny(keyword) + pp.Word(pp.alphanums + '$' + '_' + pp.srange(r'\x00C0-\xFFFF')).setName('identifier')
     identpath = pp.delimitedList(identifier, delim='.')
@@ -33,12 +36,13 @@ def build_parser():
 
     implements = k_implements + identpath('implements')
     extends = k_extends + pp.delimitedList(identpath('extends'), delim=',')
-    class_dec = k_class + identifier('cls') + pp.Optional(extends) + pp.Optional(implements)
+    class_modifiers = pp.ZeroOrMore(k_public | k_abstract | k_final)
+    class_dec = class_modifiers + k_class + identifier('cls') + pp.Optional(extends) + pp.Optional(implements)
 
     grammar = package_dec + imports + class_dec
 
     string_literal = pp.nestedExpr('"')
-    grammar.ignore(pp.cStyleComment)
+    grammar.ignore(pp.cppStyleComment)
     grammar.ignore(string_literal)
 
     return grammar
@@ -72,7 +76,8 @@ def parse(string):
         implements = [tuplify(x) for x in parsed.implements]
 
         return ClassInfo(package, imports, cls, extends, implements)
-    except pp.ParseException:
+    except pp.ParseException as e:
+        print(e)
         return None
 
 
@@ -123,47 +128,60 @@ class Node():
         return self.parent.path() + (self.name,)
 
 
-def dosomething(fpaths):
+def get_relationships(fpaths):
     root = Node.make_root()
-    for fname in fpaths:
-        with open(fname, 'r') as f:
-            classinfo = parse(f.fread())
-            root.forgepath(classinfo.package)
-            root.navigate(classinfo.package).extend([Node(classinfo.cls, data=classinfo)])
-    
-
-
-
-def buildtree(fpaths):
-    namespaces = defaultdict(list)
     classinfos = []
     for fname in fpaths:
         with open(fname, 'r') as f:
-            classinfo = parse(f.fread())
-            namespaces[classinfo.package].append(classinfo.cls)
-            classinfos.append(classinfo)
-
-    # "import x.y.Z" statements are easy to work with: check Z directly against ('x', 'y', 'Z').
-    # "import x.y.*" will grab values from namespaces[(x, y)] => [A, B, C, Z]
-    
-    # key: a class
-    # val: (class, edgetype)
-    tree = []
-    for cls in classinfos:
-        # map names in the local namespace to fully qualified ones
-        fullyqualified = defaultdict(list)
-        for imp in cls.imports:
-            if imp[-1] == '*':
-                path = imp[:-2]
-                if path in namespaces:
-                    children = namespaces[path]
-                    for child in children:
-                        fullyqualified[child].append(path + [child])
-            elif len(imp) == 1:
-                fullyqualified.append(imp)
+            classinfo = parse(f.read())
+            if classinfo:
+                root.forgepath(classinfo.package)
+                root.navigate(classinfo.package).extend_children([Node(classinfo.cls, data=classinfo)])
+                classinfos.append(classinfo)
             else:
-                fullyqualified[imp[-1]] = imp
+                print('ignored {}'.format(fname))
+    print(root.name)
+    for ch in root.children:
+        print('  {}'.format(ch.name))
+        for ch2 in ch.children:
+            print('    {}'.format(ch2.name))
 
+    inheritance_parents = {}
+    interface_parents = {}
+    for info in classinfos:
+        imported = [root.navigate(info.package)]
+        for imp in info.imports:
+            if imp[-1] == '*':
+                parent = root.navigate(imp[:-2])
+                if parent:
+                    imported.extend([child.path() for child in parent])
+            else:
+                node = root.navigate(imp)
+                if node:
+                    imported.append(node)
+
+        thispath = info.package + (info.cls,)
+
+        # fully qualify identifiers so they're all absolute
+        def qualify(x):
+            if len(x) == 1:
+                return info.package + x
+            return x
+
+        for im in imported:
+            qualified_extends = qualify(info.extends)
+            package, therest = qualified_extends[:len(info.package)], qualified_extends[len(info.package):]
+            node = root.navigate(package).navigate(therest)
+            if node and len(node.path()) > 0:
+                inheritance_parents[thispath] = node.path()
+
+        for implements in info.implements:
+            for im in imported:
+                node = im.navigate(implements)
+                if node:
+                    interface_parents[thispath] = node.path()
+
+    return inheritance_parents, interface_parents
 
 
 
