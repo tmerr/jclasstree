@@ -25,8 +25,9 @@ def test_parser():
         parsed = jclasstree.parse(data)
         assert parsed.package == ('stuff2',)
         assert parsed.imports == [('stuff',)]
-        assert parsed.cls == 'A'
+        assert parsed.name == 'A'
         assert parsed.extends == ('stuff', 'A')
+        assert parsed.thetype == 'class'
         #assert parsed.implements == []
 
 

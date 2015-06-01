@@ -19,12 +19,15 @@ def build_parser():
     k_package = pp.Keyword('package')
     k_implements = pp.Keyword('implements')
     k_extends = pp.Keyword('extends')
+    k_enum = pp.Keyword('enum')
+    k_annotation_dec = pp.Keyword('@interface')
+    k_interface = pp.Keyword('interface')
     k_class = pp.Keyword('class')
     k_import = pp.Keyword('import')
     k_public = pp.Keyword('public')
     k_abstract = pp.Keyword('abstract')
     k_final = pp.Keyword('final')
-    keyword = k_package | k_implements | k_extends | k_class | k_import | k_public | k_abstract | k_final
+    keyword = k_package | k_implements | k_extends | k_enum | k_interface | k_class | k_import | k_public | k_abstract | k_final
 
     identifier = pp.NotAny(keyword) + pp.Word(pp.alphanums + '$' + '_' + pp.srange(r'\x00C0-\xFFFF')).setName('identifier')
     identpath = pp.delimitedList(identifier, delim='.')
@@ -36,14 +39,17 @@ def build_parser():
 
     implements = k_implements + identpath('implements')
     extends = k_extends + pp.delimitedList(identpath('extends'), delim=',')
-    class_modifiers = pp.ZeroOrMore(k_public | k_abstract | k_final)
-    class_dec = class_modifiers + k_class + identifier('cls') + pp.Optional(extends) + pp.Optional(implements)
+    type_modifiers = pp.ZeroOrMore(k_public | k_abstract | k_final)('modifiers')
+    types = k_class | k_interface | k_enum | k_annotation_dec
+    type_dec = type_modifiers + types('thetype') + identifier('name') + pp.Optional(extends) + pp.Optional(implements)
 
-    grammar = package_dec + imports + class_dec
+    grammar = package_dec + imports + type_dec
 
     string_literal = pp.nestedExpr('"')
+    annotation = pp.Literal('@') + pp.NotAny('interface') + pp.SkipTo(pp.LineEnd())
     grammar.ignore(pp.cppStyleComment)
     grammar.ignore(string_literal)
+    grammar.ignore(annotation)
 
     return grammar
 
@@ -54,14 +60,15 @@ def parse(string):
     Return a ClassInfo object with fields
         package: a tuple
         imports: a list of tuples
-        cls: the string name of the class
+        thetype: 'class' or 'abstract class' 'interface'
+        name: the string name of the class
         extends: a tuple
         implements: a list of tuples
 
     Will throw an exception if there's an error parsing (common)
     '''
 
-    ClassInfo = namedtuple('ClassInfo', ['package', 'imports', 'cls', 'extends', 'implements'])
+    ClassInfo = namedtuple('TypeInfo', ['package', 'imports', 'thetype', 'name', 'extends', 'implements'])
 
     def tuplify(x):
         # working out the return types from the parser is really annoying.
@@ -74,12 +81,13 @@ def parse(string):
     else:
         package = tuplify(parsed.package)
     imports = [tuplify(x) for x in parsed.importlines.imports]
-    cls = tuplify(parsed.cls)[0]
+    name = tuplify(parsed.name)[0]
     extends = tuplify(parsed.extends)
     #implements = [tuplify(x) for x in parsed.implements]
-    implements = None
+    implements = []
+    thetype = parsed.thetype
 
-    return ClassInfo(package, imports, cls, extends, implements)
+    return ClassInfo(package, imports, thetype, name, extends, implements)
 
 
 class Node():
@@ -137,7 +145,7 @@ def get_relationships(fpaths):
             try:
                 classinfo = parse(f.read())
                 root.forgepath(classinfo.package)
-                root.navigate(classinfo.package).extend_children([Node(classinfo.cls, data=classinfo)])
+                root.navigate(classinfo.package).extend_children([Node(classinfo.name, data=classinfo)])
                 classinfos.append(classinfo)
                 print('read {}'.format(fname))
             except pp.ParseException as e:
@@ -156,7 +164,7 @@ def get_relationships(fpaths):
                 if node:
                     imported.append(node)
 
-        thispath = info.package + (info.cls,)
+        thispath = info.package + (info.name,)
 
         # fully qualify identifiers so they're all absolute
         def qualify(x):
