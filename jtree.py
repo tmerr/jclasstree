@@ -1,6 +1,6 @@
 import os
 import re
-from ete2 import Tree, TreeNode
+from ete2 import Tree, TreeNode, TreeStyle, AttrFace, faces
 from collections import namedtuple
 import pyparsing as pp
 
@@ -28,7 +28,7 @@ def build_parser():
 
     identifier = pp.NotAny(keyword) + pp.Word(pp.alphanums + '$' + '_' + pp.srange(r'\x00C0-\xFFFF')).setName('identifier')
     identpath = pp.delimitedList(identifier, delim='.')
-    package_dec = k_package + identpath('package') + pp.Literal(';')
+    package_dec = pp.Optional(k_package + identpath('package') + pp.Literal(';'))
 
     importpath = identpath + pp.Optional(pp.Literal('.') + pp.Literal('*'))
     oneimport = importpath.setResultsName('imports', listAllMatches=True)
@@ -58,26 +58,28 @@ def parse(string):
         extends: a tuple
         implements: a list of tuples
 
-    Or if there is an error parsing, return None.
+    Will throw an exception if there's an error parsing (common)
     '''
 
     ClassInfo = namedtuple('ClassInfo', ['package', 'imports', 'cls', 'extends', 'implements'])
-    try:
-        def tuplify(x):
-            # working out the return types from the parser is really annoying.
-            # this will turn [], '', or None into (,), and a result into a tuple.
-            return () if not x else tuple(x.asList())
 
-        parsed = parser.parseString(string)
+    def tuplify(x):
+        # working out the return types from the parser is really annoying.
+        # this will turn [], '', or None into (,), and a result into a tuple.
+        return () if not x else tuple(x.asList())
+
+    parsed = parser.parseString(string)
+    if not parsed.package:
+        package = ('default',)
+    else:
         package = tuplify(parsed.package)
-        imports = [tuplify(x) for x in parsed.importlines.imports]
-        cls = tuplify(parsed.cls)[0]
-        extends = tuplify(parsed.extends)
-        implements = [tuplify(x) for x in parsed.implements]
+    imports = [tuplify(x) for x in parsed.importlines.imports]
+    cls = tuplify(parsed.cls)[0]
+    extends = tuplify(parsed.extends)
+    #implements = [tuplify(x) for x in parsed.implements]
+    implements = None
 
-        return ClassInfo(package, imports, cls, extends, implements)
-    except pp.ParseException as e:
-        return None
+    return ClassInfo(package, imports, cls, extends, implements)
 
 
 class Node():
@@ -132,24 +134,23 @@ def get_relationships(fpaths):
     classinfos = []
     for fname in fpaths:
         with open(fname, 'r') as f:
-            classinfo = parse(f.read())
-            if classinfo:
+            try:
+                classinfo = parse(f.read())
                 root.forgepath(classinfo.package)
                 root.navigate(classinfo.package).extend_children([Node(classinfo.cls, data=classinfo)])
                 classinfos.append(classinfo)
                 print('read {}'.format(fname))
-            else:
-                print('ignored {}'.format(fname))
+            except pp.ParseException as e:
+                print('ignored {}. cause: {:20s}...'.format(fname, e))
 
     inheritance_parents = {}
-    interface_parents = {}
     for info in classinfos:
         imported = [root.navigate(info.package)]
         for imp in info.imports:
             if imp[-1] == '*':
                 parent = root.navigate(imp[:-2])
                 if parent:
-                    imported.extend([child.path() for child in parent])
+                    imported.extend([child.path() for child in parent.children])
             else:
                 node = root.navigate(imp)
                 if node:
@@ -166,15 +167,22 @@ def get_relationships(fpaths):
         for im in imported:
             qualified_extends = qualify(info.extends)
             package, therest = qualified_extends[:len(info.package)], qualified_extends[len(info.package):]
-            node = root.navigate(package).navigate(therest)
-            if node and len(node.path()) > 0:
-                inheritance_parents[thispath] = node.path()
+            try: 
+                node = root.navigate(package).navigate(therest)
+                if node and len(node.path()) > 0:
+                    inheritance_parents[thispath] = node.path()
+            except:
+                pass
 
     return inheritance_parents, None
 
 
 def run():
-    tree = Tree(format=1, name='Object')
+    style = TreeStyle()
+    style.layout_fn = layout
+    style.show_leaf_name = False
+
+    tree = Tree(name='Object')
     inheritance_parents, _ = get_relationships(genfpaths())
 
     forest = []
@@ -197,10 +205,14 @@ def run():
 
     nparentless = [t for t in forest if t.name in parentless]
     for node in nparentless:
-        print('wat')
         tree.add_child(node)
 
-    tree.show()
+    tree.show(tree_style=style, name='jtree')
+
+
+def layout(node):
+    N = AttrFace("name", fsize=10, fgcolor="black")
+    faces.add_face_to_node(N, node, 0)
 
 
 if __name__ == '__main__':
