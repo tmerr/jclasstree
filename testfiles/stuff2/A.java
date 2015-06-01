@@ -1,5 +1,5 @@
 package stuff2;
-import stuff.A;
+import stuff;
 
 class A extends stuff.A
 {
