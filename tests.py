@@ -1,4 +1,4 @@
-import inheritance_ete
+import jtree
 
 
 fpaths = [
@@ -14,21 +14,13 @@ fpaths = [
 fully_qualified = {
     ('stuff', 'A'),
     ('stuff', 'B'),
-    ('stuff', 'C'),
-    ('stuff', 'D'),
     ('stuff2', 'AA'),
     ('stuff2', 'A'),
     ('stuff2', 'B')
 }
 
 
-def test_strip_comments():
-    expected = 'abcdefjklmnostuv'
-
-    print(inheritance_ete.strip_comments('abcdef/*ghi*/jklmno//pqr\nstuv'))
-    assert False
-
-
 def test_package_structure():
     #print(inheritance_ete.package_structure(fpaths))
-    assert fully_qualified == inheritance_ete.package_structure(fpaths)
+    print(jtree.package_structure(fpaths))
+    assert fully_qualified == set(jtree.package_structure(fpaths))
