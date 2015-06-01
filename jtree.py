@@ -48,11 +48,11 @@ parser = build_parser()
 def parse(string):
     '''
     Return a ClassInfo object with fields
-        package: a list
-        imports: a list of lists
+        package: a tuple
+        imports: a list of tuples
         cls: the string name of the class
-        extends: a list
-        implements: a list of lists
+        extends: a tuple
+        implements: a list of tuples
 
     Or if there is an error parsing, return None.
     '''
