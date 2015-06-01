@@ -207,7 +207,7 @@ def run():
     for node in nparentless:
         tree.add_child(node)
 
-    tree.show(tree_style=style, name='jtree')
+    tree.show(tree_style=style, name='glassjam')
 
 
 def layout(node):
