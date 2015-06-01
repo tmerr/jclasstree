@@ -1,6 +1,6 @@
 import os
 import re
-from ete2 import Tree
+from ete2 import Tree, TreeNode
 from collections import namedtuple
 import pyparsing as pp
 
@@ -77,7 +77,6 @@ def parse(string):
 
         return ClassInfo(package, imports, cls, extends, implements)
     except pp.ParseException as e:
-        print(e)
         return None
 
 
@@ -138,13 +137,9 @@ def get_relationships(fpaths):
                 root.forgepath(classinfo.package)
                 root.navigate(classinfo.package).extend_children([Node(classinfo.cls, data=classinfo)])
                 classinfos.append(classinfo)
+                print('read {}'.format(fname))
             else:
                 print('ignored {}'.format(fname))
-    print(root.name)
-    for ch in root.children:
-        print('  {}'.format(ch.name))
-        for ch2 in ch.children:
-            print('    {}'.format(ch2.name))
 
     inheritance_parents = {}
     interface_parents = {}
@@ -175,18 +170,37 @@ def get_relationships(fpaths):
             if node and len(node.path()) > 0:
                 inheritance_parents[thispath] = node.path()
 
-        for implements in info.implements:
-            for im in imported:
-                node = im.navigate(implements)
-                if node:
-                    interface_parents[thispath] = node.path()
-
-    return inheritance_parents, interface_parents
-
+    return inheritance_parents, None
 
 
 def run():
-    buildtree(genfpaths())
+    tree = Tree(format=1, name='Object')
+    inheritance_parents, _ = get_relationships(genfpaths())
+
+    forest = []
+    for child, parent in inheritance_parents.items():
+        pname = '.'.join(parent)
+        if all((x.name != parent for x in forest)):
+            forest.append(TreeNode(name=pname))
+        cname = '.'.join(child)
+        if all((x.name != child for x in forest)):
+            forest.append(TreeNode(name=cname))
+
+    parentless = set((t.name for t in forest))
+    for child, parent in inheritance_parents.items():
+        pname = '.'.join(parent)
+        cname = '.'.join(child)
+        pnode = [t for t in forest if t.name==pname][0]
+        cnode = [t for t in forest if t.name==cname][0]
+        pnode.add_child(cnode)
+        parentless.remove(cname)
+
+    nparentless = [t for t in forest if t.name in parentless]
+    for node in nparentless:
+        print('wat')
+        tree.add_child(node)
+
+    tree.show()
 
 
 if __name__ == '__main__':
