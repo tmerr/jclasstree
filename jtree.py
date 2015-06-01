@@ -20,11 +20,15 @@ def build_parser():
     k_implements = pp.Keyword('implements')
     k_extends = pp.Keyword('extends')
     k_class = pp.Keyword('class')
-    keywords = k_package + k_implements + k_extends + k_class
+    #k_import = pp.Keyword('import')
+    keyword = k_package | k_implements | k_extends | k_class
 
-    identifier = pp.NotAny(keywords) + pp.Word(pp.alphanums + '$' + '_' + pp.srange(r'\x00C0-\xFFFF')).setName('identifier')
-
+    identifier = pp.NotAny(keyword) + pp.Word(pp.alphanums + '$' + '_' + pp.srange(r'\x00C0-\xFFFF')).setName('identifier')
+    #identpath = pp.delimitedList(identifier, delim='.')
     package_dec = k_package + identifier('package') + pp.Literal(';')
+
+     #import_dec = pp.ZeroOrMore(k_import + identpath + pp.Literal(';'))
+
     implements = k_implements + identifier('implements')
     extends = k_extends + pp.delimitedList(identifier('extends'), delim=',')
     class_dec = k_class + identifier('cls') + pp.Optional(extends) + pp.Optional(implements)
@@ -49,7 +53,10 @@ def parse(string):
 
 
 def package_structure(fpaths):
-    '''return a list of valid fully-qualified class names'''
+    '''
+    Return a list of valid fully-qualified class names.
+    Each is a tuple (a, b, c, ..., Class)
+    '''
     result = []
     for fname in fpaths:
         with open(fname, 'r') as f:
@@ -62,19 +69,7 @@ def package_structure(fpaths):
 
 def buildtree(fpaths):
     tree = {}
-    classnames = []
-
-
-    namespace = set()
-
-
-    for fname in fnames:
-        namespace = set()
-        with open(fname, 'r') as f:
-            m = regex.search(r'([^\s])+\s+extends\s+([^\s])+', f.read())
-            if m:
-                child, parent = m.group(1), m.group(2)
-                tree[parent] = child
+    structure = package_structure(fpaths)
 
 
 def run():

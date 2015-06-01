@@ -21,6 +21,4 @@ fully_qualified = {
 
 
 def test_package_structure():
-    #print(inheritance_ete.package_structure(fpaths))
-    print(jtree.package_structure(fpaths))
     assert fully_qualified == set(jtree.package_structure(fpaths))
