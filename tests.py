@@ -29,8 +29,9 @@ def test_parser():
         assert parsed.extends == ('stuff', 'A')
         assert parsed.implements == []
 
+
 def test_node():
-    root = jtree.Node.make_root('root')
+    root = jtree.Node.make_root()
     root.extend_children([jtree.Node('childA'), jtree.Node('childB')])
     root.navigate(('childA',)).extend_children([jtree.Node('grandchildA'), jtree.Node('grandchildB')])
     assert root.navigate(('aahaha', 'ha')) == None
@@ -39,7 +40,14 @@ def test_node():
     assert root.navigate(('childB', 'gdasgdsag')) == None
     assert root.navigate(('childA', 'grandchildB')).name == 'grandchildB'
 
+
 def test_node_forgepath():
-    root = jtree.Node.make_root('root')
+    root = jtree.Node.make_root()
     root.forgepath(('one', 'two', 'three', 'four'))
     assert root.navigate(('one', 'two', 'three', 'four'))
+
+def test_node_path():
+    root = jtree.Node.make_root()
+    root.forgepath(('one', 'two', 'three', 'four'))
+    four = root.navigate(('one', 'two', 'three', 'four'))
+    assert four.path() == ('one', 'two', 'three', 'four')

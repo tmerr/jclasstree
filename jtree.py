@@ -83,8 +83,8 @@ class Node():
         self.data = data
 
     @classmethod
-    def make_root(cls, name):
-        result = cls(name)
+    def make_root(cls):
+        result = cls('root')
         result.parent = None
         return result
 
@@ -117,12 +117,21 @@ class Node():
         self.extend_children([newnode])
         newnode.forgepath(path[1:])
 
+    def path(self):
+        if self.parent == None:
+            return ()
+        return self.parent.path() + (self.name,)
+
 
 def dosomething(fpaths):
+    root = Node.make_root()
     for fname in fpaths:
         with open(fname, 'r') as f:
             classinfo = parse(f.fread())
-            Node(classinfo.cls, data=classinfo)
+            root.forgepath(classinfo.package)
+            root.navigate(classinfo.package).extend([Node(classinfo.cls, data=classinfo)])
+    
+
 
 
 def buildtree(fpaths):
