@@ -54,7 +54,7 @@ def test_node_path():
     assert four.path() == ('one', 'two', 'three', 'four')
 
 def test_inheritance():
-    inheritance, _ = jclasstree.get_relationships(fpaths)
+    inheritance = jclasstree.build_inheritance_tree(fpaths)
     expected_inheritance = {
         ('stuff', 'B'): ('stuff', 'A'),
         ('stuff2', 'AA'): ('stuff2', 'A'),

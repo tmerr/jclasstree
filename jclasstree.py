@@ -137,19 +137,24 @@ class Node():
         return self.parent.path() + (self.name,)
 
 
-def get_relationships(fpaths):
+def build_inheritance_tree(fpaths):
     root = Node.make_root()
     classinfos = []
     for fname in fpaths:
         with open(fname, 'r') as f:
             try:
                 classinfo = parse(f.read())
-                root.forgepath(classinfo.package)
-                root.navigate(classinfo.package).extend_children([Node(classinfo.name, data=classinfo)])
-                classinfos.append(classinfo)
-                print('read {}'.format(fname))
+                if classinfo.thetype == 'class':
+                    root.forgepath(classinfo.package)
+                    root.navigate(classinfo.package).extend_children([Node(classinfo.name, data=classinfo)])
+                    classinfos.append(classinfo)
+                    print('read {}'.format(fname))
+                    continue
+                else:
+                    error_cause = "is type {}".format(classinfo.thetype)
             except pp.ParseException as e:
-                print('ignored {}. cause: {:20s}...'.format(fname, e))
+                error_cause = e
+            print('ignored {}. cause: {:20s}'.format(fname, error_cause))
 
     inheritance_parents = {}
     for info in classinfos:
@@ -182,7 +187,7 @@ def get_relationships(fpaths):
             except:
                 pass
 
-    return inheritance_parents, None
+    return inheritance_parents
 
 
 def run():
@@ -191,7 +196,7 @@ def run():
     style.show_leaf_name = False
 
     tree = Tree(name='Object')
-    inheritance_parents, _ = get_relationships(genfpaths())
+    inheritance_parents = build_inheritance_tree(genfpaths())
 
     forest = []
     for child, parent in inheritance_parents.items():
